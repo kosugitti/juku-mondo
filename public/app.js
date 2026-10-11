@@ -1,5 +1,5 @@
 // ============================================================
-// 塾Q&A 本体
+// Juku.mondo 本体
 //   参加者は匿名ログイン(ブラウザごとのID)。幹事だけ Google ログイン
 //   ルート: #/        ホーム(幹事はイベント作成と一覧)
 //           #/e/<ID>  イベントの質問板
@@ -26,7 +26,7 @@ const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
 if (isLocal) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
-  window.__jukuqa = { auth, db }; // 模擬環境での動作確認用(本番では作られない)
+  window.__mondo = { auth, db }; // 模擬環境での動作確認用(本番では作られない)
 }
 
 // ---- 状態 ----
@@ -45,10 +45,10 @@ const $who = document.getElementById("who");
 
 // ---- 小道具 ----
 function load(key, dflt) {
-  try { return localStorage.getItem("jukuqa." + key) ?? dflt; } catch { return dflt; }
+  try { return localStorage.getItem("jukumondo." + key) ?? dflt; } catch { return dflt; }
 }
 function save(key, value) {
-  try { localStorage.setItem("jukuqa." + key, value); } catch { /* 保存できなくても動く */ }
+  try { localStorage.setItem("jukumondo." + key, value); } catch { /* 保存できなくても動く */ }
 }
 // DOM を組み立てる(文字列は textContent で入れるので HTML として解釈されない)
 function h(tag, attrs = {}, ...children) {
@@ -141,13 +141,13 @@ function route() {
 // ホーム
 // ============================================================
 function renderHome() {
-  document.title = "塾Q&A";
+  document.title = "Juku.mondo";
   $app.replaceChildren();
 
   if (!state.isOrganizer) {
     $app.append(
       h("div", { class: "card" },
-        h("h1", {}, "塾Q&A"),
+        h("h1", {}, "Juku.mondo"),
         h("p", {}, "幹事から配られたイベントのURLを開いてください。"),
         state.user.isAnonymous
           ? h("p", { class: "muted" }, "幹事の方はこちらから: ",
@@ -243,7 +243,7 @@ function renderEvent(eventId) {
       return;
     }
     state.event = snap.data({ serverTimestamps: "estimate" });
-    document.title = state.event.title + " | 塾Q&A";
+    document.title = state.event.title + " | Juku.mondo";
     redraw();
   }, fail));
 
@@ -379,7 +379,7 @@ function postBody(p, isMod, root) {
     updateDoc(ref, { likedBy: liked ? arrayRemove(me) : arrayUnion(me) }).catch(fail);
   const reply = () => {
     state.replyTo = { id: root.id, name: p.name || "匿名", text: p.text };
-    document.dispatchEvent(new Event("jukuqa:reply"));
+    document.dispatchEvent(new Event("jukumondo:reply"));
   };
   const del = () => {
     if (confirm("この投稿を削除しますか?")) deleteDoc(ref).catch(fail);
@@ -421,7 +421,7 @@ function buildComposer() {
       h("span", {}, `返信先: ${state.replyTo.name}「${state.replyTo.text}」`),
       h("button", { class: "link", onclick: () => { state.replyTo = null; showReply(); } }, "取消")));
   };
-  document.addEventListener("jukuqa:reply", () => { showReply(); text.focus(); });
+  document.addEventListener("jukumondo:reply", () => { showReply(); text.focus(); });
 
   const submit = async () => {
     const t = text.value.trim();

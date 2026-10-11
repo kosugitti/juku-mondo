@@ -1,6 +1,6 @@
-# 塾Q&A
+# Juku.mondo
 
-勉強会・合宿の発表中に，参加者が質問やコメントを書き込む掲示板。Sli.do の質問板に「返信」を足したもの。
+問答(もんどう)の場。勉強会・合宿の発表中に，参加者が質問やコメントを書き込む掲示板。Sli.do の質問板に「返信」を足したもの。
 
 - 参加者は匿名で入り，表示名(マスコットネーム)は任意
 - 投稿・返信・いいね・新しい順/古い順/いいね順の並べ替え
@@ -22,7 +22,7 @@
 
 ### 1. Firebase プロジェクトを作る(ブラウザ)
 
-1. https://console.firebase.google.com/ を organizer@example.com で開き，「プロジェクトを作成」。名前は `juku-qa` など。Google アナリティクスはオフでよい。
+1. https://console.firebase.google.com/ を organizer@example.com で開き，「プロジェクトを作成」。名前は `juku-mondo` など。Google アナリティクスはオフでよい。
 2. 左の「構築 > Authentication」で「始める」。「ログイン方法」タブで次の2つを有効にする。
    - 匿名
    - Google(サポートメールに自分のアドレスを選ぶ)
@@ -44,7 +44,7 @@ Firestore Database の「データ」タブで「コレクションを開始」�
 
 ```sh
 firebase login          # ブラウザが開くので Google でログイン
-cd juku-qa
+cd juku-mondo
 firebase use --add      # 作ったプロジェクトを選び，別名は default
 ```
 

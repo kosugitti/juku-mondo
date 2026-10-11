@@ -5,4 +5,4 @@
 # 起動後に別のターミナルで scripts/seed-emulator.sh を1回実行する
 export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
 cd "$(dirname "$0")/.."
-exec firebase emulators:start --project demo-juku-qa
+exec firebase emulators:start --project demo-juku-mondo

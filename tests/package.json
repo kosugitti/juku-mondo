@@ -1,5 +1,5 @@
 {
-  "name": "juku-qa-rules-test",
+  "name": "juku-mondo-rules-test",
   "private": true,
   "type": "module",
   "scripts": { "test": "node --test rules.test.mjs" },

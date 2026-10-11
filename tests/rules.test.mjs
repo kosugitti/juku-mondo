@@ -31,7 +31,7 @@ const newPost = (uid, extra = {}) => ({
 
 before(async () => {
   env = await initializeTestEnvironment({
-    projectId: "demo-juku-qa",
+    projectId: "demo-juku-mondo",
     firestore: { host: "127.0.0.1", port: 8080, rules: readFileSync("../firestore.rules", "utf8") },
   });
 });
