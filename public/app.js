@@ -14,7 +14,7 @@ const {
 } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
 const {
   getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, collection, addDoc,
-  updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove,
+  updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, FieldPath,
 } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
 // ---- 初期化(設定は Firebase Hosting が /__/firebase/init.json で配る) ----
@@ -38,6 +38,12 @@ const ICONS = [
   "☕", "🍺", "⭐", "🌙", "🔥", "🎲", "🎸", "🚀", "👻", "🤖", "👽", "🧙",
 ];
 
+// ---- リアクション(Discord のように投稿の下に絵文字を付ける) ----
+const REACTIONS = [
+  "👍", "❤️", "😂", "😮", "🤔", "💡", "🙏", "👏", "🎉", "🔥", "👀", "🙌",
+  "💯", "✅", "❓", "🤯", "😍", "🥲", "😇", "🫡", "😱", "🙇", "🍺", "☕",
+];
+
 // ---- 状態 ----
 const state = {
   user: null,
@@ -48,6 +54,8 @@ const state = {
   posts: [],           // 表示中のイベントの投稿
   sort: load("sort", "new"),
   replyTo: null,       // 返信先の投稿
+  pickerFor: null,     // リアクションの一覧を開いている投稿
+  redraw: () => {},    // 表示中の画面を描き直す
 };
 // 初めて開いたブラウザには絵文字を1つ割り当てて覚えておく
 state.icon = load("icon", null) || ICONS[Math.floor(Math.random() * ICONS.length)];
@@ -143,6 +151,7 @@ window.addEventListener("hashchange", () => state.user && route());
 function route() {
   clearListeners();
   state.replyTo = null;
+  state.pickerFor = null;
   document.querySelector(".composer")?.remove();
   const m = location.hash.match(/^#\/e\/([A-Za-z0-9]+)$/);
   if (m) renderEvent(m[1]);
@@ -237,6 +246,7 @@ function renderEvent(eventId) {
 
   const redraw = () => {
     if (!state.event) return;
+    state.redraw = redraw;
     renderHead(head);
     renderModPanel(modPanel, isMod());
     renderToolbar(toolbar, redraw, isMod());
@@ -412,8 +422,41 @@ function postBody(p, isMod, root) {
         (liked ? "♥ " : "♡ ") + (p.likedBy?.length ?? 0)),
       closed ? null : h("button", { class: "link", onclick: reply }, "返信"),
       p.uid === me ? h("button", { class: "link", onclick: del }, "削除") : null,
-      isMod ? h("button", { class: "link", onclick: toggleHide }, p.hidden ? "再表示" : "非表示") : null)),
+      isMod ? h("button", { class: "link", onclick: toggleHide }, p.hidden ? "再表示" : "非表示") : null),
+    reactionBar(p, ref, closed)),
   );
+}
+
+// 付いているリアクションを「絵文字 人数」で並べ，押すと自分の1票を付け外しする
+function reactionBar(p, ref, closed) {
+  const me = state.user.uid;
+  const toggle = (emoji) => {
+    const mine = (p.reactions?.[emoji] ?? []).includes(me);
+    state.pickerFor = null;
+    updateDoc(ref,
+      new FieldPath("reactions", emoji), mine ? arrayRemove(me) : arrayUnion(me),
+      "lastReaction", emoji,
+    ).catch(fail);
+  };
+  // 並び順は一覧の順に固定する(押すたびに入れ替わらないように)
+  const rank = (e) => { const i = REACTIONS.indexOf(e); return i < 0 ? REACTIONS.length : i; };
+  const entries = Object.entries(p.reactions ?? {})
+    .filter(([, uids]) => uids.length > 0)
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
+  const chips = entries.map(([emoji, uids]) =>
+    h("button", {
+      class: "chip" + (uids.includes(me) ? " on" : ""), onclick: () => toggle(emoji), disabled: closed,
+    }, `${emoji} ${uids.length}`));
+  const open = state.pickerFor === p.id;
+  const add = closed ? null : h("button", {
+    class: "chip add", title: "リアクションを付ける",
+    onclick: () => { state.pickerFor = open ? null : p.id; state.redraw(); },
+  }, "😀+");
+  if (!chips.length && !add) return null;
+  return h("div", {},
+    h("div", { class: "reactions" }, chips, add),
+    open ? h("div", { class: "palette react-palette" },
+      REACTIONS.map((e) => h("button", { class: "link", onclick: () => toggle(e) }, e))) : null);
 }
 
 // ---- 画面下の投稿欄 ----
@@ -494,12 +537,13 @@ function downloadCSV(isMod) {
   }
   for (const p of posts) if (!used.has(p.id)) ordered.push(p); // 親が消えた返信
 
-  const header = ["投稿ID", "親ID", "投稿時刻", "アイコン", "表示名", "本文", "いいね数"];
+  const header = ["投稿ID", "親ID", "投稿時刻", "アイコン", "表示名", "本文", "いいね数", "リアクション"];
   if (isMod) header.push("非表示");
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [header.map(esc).join(",")];
   for (const p of ordered) {
-    const row = [p.id, p.parentId ?? "", fmtTime(p.createdAt, true), p.icon ?? "", p.name || "匿名", p.text, p.likedBy?.length ?? 0];
+    const row = [p.id, p.parentId ?? "", fmtTime(p.createdAt, true), p.icon ?? "", p.name || "匿名", p.text, p.likedBy?.length ?? 0,
+      Object.entries(p.reactions ?? {}).filter(([, u]) => u.length).map(([e, u]) => `${e}${u.length}`).join(" ")];
     if (isMod) row.push(p.hidden ? "1" : "0");
     lines.push(row.map(esc).join(","));
   }

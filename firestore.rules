@@ -89,6 +89,25 @@ service cloud.firestore {
              || (before.difference(after) == me && after.difference(before).size() == 0));
         }
 
+        // リアクション: reactions.<絵文字> の uid 一覧に自分を1つ足すか消すだけ。
+        // どの絵文字を触ったかを lastReaction に書かせ，その1キー以外は変えさせない
+        function isReactionToggle() {
+          let k = request.resource.data.lastReaction;
+          let before = resource.data.get('reactions', {});
+          let after = request.resource.data.reactions;
+          let b = before.get(k, []).toSet();
+          let aList = after.get(k, []);
+          let a = aList.toSet();
+          let me = [request.auth.uid].toSet();
+          return changedOnly(['reactions', 'lastReaction'])
+            && k is string && k.size() > 0 && k.size() <= 16
+            && after is map && after.keys().size() <= 30
+            && after.diff(before).affectedKeys().hasOnly([k])
+            && aList is list && aList.size() == a.size() && aList.size() <= 500
+            && ((a.difference(b) == me && b.difference(a).size() == 0)
+             || (b.difference(a) == me && a.difference(b).size() == 0));
+        }
+
         allow read: if signedIn();
 
         allow create: if signedIn()
@@ -111,7 +130,7 @@ service cloud.firestore {
                   && exists(/databases/$(database)/documents/events/$(eventId)/posts/$(request.resource.data.parentId))));
 
         allow update: if signedIn()
-          && ((eventOpen(eventId) && isLikeToggle())
+          && ((eventOpen(eventId) && (isLikeToggle() || isReactionToggle()))
            || (isModerator(eventId) && changedOnly(['hidden']) && request.resource.data.hidden is bool));
 
         // 自分の投稿は消せる。司会はどれでも消せる(イベント削除の後始末用)

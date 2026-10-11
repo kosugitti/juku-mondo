@@ -11,7 +11,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import {
   doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, collection,
-  serverTimestamp, arrayUnion, arrayRemove,
+  serverTimestamp, arrayUnion, arrayRemove, FieldPath,
 } from "firebase/firestore";
 
 const ORG = "org@example.com";
@@ -142,4 +142,26 @@ test("非表示にできるのは司会だけ", async () => {
 test("投稿を消せるのは本人か司会", async () => {
   await assertFails(deleteDoc(doc(anon("bob"), "events/E1/posts/p1")));
   await assertSucceeds(deleteDoc(doc(anon("alice"), "events/E1/posts/p1")));
+});
+
+// ---- リアクション ----
+test("リアクションは自分の1票だけ，1つの絵文字ずつ付け外しできる", async () => {
+  const ref = (u) => doc(anon(u), "events/E1/posts/p1");
+  const R = (e) => new FieldPath("reactions", e);
+  await assertSucceeds(updateDoc(ref("bob"), R("😍"), arrayUnion("bob"), "lastReaction", "😍"));
+  await assertSucceeds(updateDoc(ref("carol"), R("😍"), arrayUnion("carol"), "lastReaction", "😍"));
+  await assertSucceeds(updateDoc(ref("carol"), R("🤔"), arrayUnion("carol"), "lastReaction", "🤔"));
+  // 他人の票を足す・消す
+  await assertFails(updateDoc(ref("bob"), R("😍"), arrayUnion("dave"), "lastReaction", "😍"));
+  await assertFails(updateDoc(ref("bob"), R("😍"), arrayRemove("carol"), "lastReaction", "😍"));
+  // lastReaction と違う絵文字を触る
+  await assertFails(updateDoc(ref("bob"), R("🎉"), arrayUnion("bob"), "lastReaction", "😍"));
+  // 2つの絵文字を一度に触る
+  await assertFails(updateDoc(ref("eve"), R("🎉"), arrayUnion("eve"), R("🔥"), arrayUnion("eve"), "lastReaction", "🎉"));
+  // ついでに本文を変える
+  await assertFails(updateDoc(ref("eve"), R("🎉"), arrayUnion("eve"), "lastReaction", "🎉", "text", "改ざん"));
+  // 外す
+  await assertSucceeds(updateDoc(ref("bob"), R("😍"), arrayRemove("bob"), "lastReaction", "😍"));
+  // 締め切り後は付けられない
+  await assertFails(updateDoc(doc(anon("bob"), "events/E2/posts/q1"), R("😍"), arrayUnion("bob"), "lastReaction", "😍"));
 });

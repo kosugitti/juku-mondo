@@ -94,3 +94,13 @@ h2 { font-size: 16px; margin: 0 0 8px; }
 }
 .palette[hidden] { display: none; }
 .palette button { font-size: 22px; padding: 4px; }
+
+/* ===== リアクション ===== */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip {
+  font-size: 14px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--bg); line-height: 1.6;
+}
+.chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.chip.add { color: var(--muted); }
+.react-palette { margin-top: 6px; max-width: 420px; }
