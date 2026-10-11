@@ -22,7 +22,7 @@
 
 ### 1. Firebase プロジェクトを作る(ブラウザ)
 
-1. https://console.firebase.google.com/ を organizer@example.com で開き，「プロジェクトを作成」。名前は `juku-mondo` など。Google アナリティクスはオフでよい。
+1. https://console.firebase.google.com/ を自分の Google アカウントで開き，「プロジェクトを作成」。名前は `juku-mondo` など。Google アナリティクスはオフでよい。
 2. 左の「構築 > Authentication」で「始める」。「ログイン方法」タブで次の2つを有効にする。
    - 匿名
    - Google(サポートメールに自分のアドレスを選ぶ)
@@ -81,3 +81,7 @@ cd tests && npm install && npm test  # ルールのテスト(模擬環境のデ�
 ## 費用の目安
 
 50人が1日中使う回で，読み取りが1日4〜5万回。Firestore の無料枠(1日5万回)の上限近くになる。超過分は10万回あたり数十円程度。
+
+## ライセンス
+
+MIT License。詳しくは `LICENSE` を参照。

@@ -1,6 +1,7 @@
 #!/bin/zsh
 # 模擬環境に幹事の許可リストを入れる(ルールを素通りする管理者権限で書く)
 #   使い方: scripts/seed-emulator.sh [メールアドレス ...]
+#   模擬環境の Google ログインでは，ここで登録したアドレスを入力すると幹事になれる
 emails=(${@:-organizer@example.com})
 vals=$(printf '{"stringValue":"%s"},' "${emails[@]}")
 curl -s -X PATCH \
