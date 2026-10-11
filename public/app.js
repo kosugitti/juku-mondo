@@ -29,6 +29,15 @@ if (isLocal) {
   window.__mondo = { auth, db }; // 模擬環境での動作確認用(本番では作られない)
 }
 
+// ---- 絵文字アイコン(Slack や Discord の丸いアイコンの代わり) ----
+const ICONS = [
+  "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮",
+  "🐷", "🐸", "🐵", "🐔", "🐧", "🐤", "🦆", "🦉", "🐺", "🐗", "🐴", "🦄",
+  "🐝", "🐛", "🦋", "🐌", "🐞", "🐢", "🐍", "🦖", "🐙", "🦀", "🐠", "🐬",
+  "🐳", "🦭", "🦔", "🦦", "🦥", "🐿️", "🌵", "🍄", "🌻", "🍙", "🍣", "🍩",
+  "☕", "🍺", "⭐", "🌙", "🔥", "🎲", "🎸", "🚀", "👻", "🤖", "👽", "🧙",
+];
+
 // ---- 状態 ----
 const state = {
   user: null,
@@ -40,6 +49,9 @@ const state = {
   sort: load("sort", "new"),
   replyTo: null,       // 返信先の投稿
 };
+// 初めて開いたブラウザには絵文字を1つ割り当てて覚えておく
+state.icon = load("icon", null) || ICONS[Math.floor(Math.random() * ICONS.length)];
+save("icon", state.icon);
 const $app = document.getElementById("app");
 const $who = document.getElementById("who");
 
@@ -386,7 +398,9 @@ function postBody(p, isMod, root) {
   };
   const toggleHide = () => updateDoc(ref, { hidden: !p.hidden }).catch(fail);
 
-  return [
+  return h("div", { class: "pwrap" },
+    h("div", { class: "avatar", "aria-hidden": "true" }, p.icon || "👤"),
+    h("div", { class: "pbody" },
     h("div", { class: "meta" },
       h("span", { class: "name" }, p.name || "匿名"),
       h("span", {}, fmtTime(p.createdAt)),
@@ -398,8 +412,8 @@ function postBody(p, isMod, root) {
         (liked ? "♥ " : "♡ ") + (p.likedBy?.length ?? 0)),
       closed ? null : h("button", { class: "link", onclick: reply }, "返信"),
       p.uid === me ? h("button", { class: "link", onclick: del }, "削除") : null,
-      isMod ? h("button", { class: "link", onclick: toggleHide }, p.hidden ? "再表示" : "非表示") : null),
-  ];
+      isMod ? h("button", { class: "link", onclick: toggleHide }, p.hidden ? "再表示" : "非表示") : null)),
+  );
 }
 
 // ---- 画面下の投稿欄 ----
@@ -409,8 +423,16 @@ function buildComposer() {
   const text = h("textarea", { placeholder: "質問やコメントを書く", maxlength: 2000, rows: 2 });
   const replying = h("div");
   const send = h("button", { class: "primary" }, "投稿");
+  const iconBtn = h("button", { class: "icon-btn", title: "アイコンを変える" }, state.icon);
+  const palette = h("div", { class: "palette", hidden: true },
+    ICONS.map((e) => h("button", {
+      class: "link", onclick: () => {
+        state.icon = e; save("icon", e); iconBtn.textContent = e; palette.hidden = true;
+      },
+    }, e)));
+  iconBtn.addEventListener("click", () => { palette.hidden = !palette.hidden; });
   const closedNote = h("p", { class: "muted", style: "margin:0" }, "受付は締め切られました。");
-  const form = h("div", { class: "composer-inner" }, replying, text, h("div", { class: "row" }, name, send,
+  const form = h("div", { class: "composer-inner" }, replying, palette, text, h("div", { class: "row" }, iconBtn, name, send,
     h("span", { class: "muted", style: "font-size:12px" }, "⌘/Ctrl+Enter で送信")));
   const el = h("div", { class: "composer" }, form);
 
@@ -431,6 +453,7 @@ function buildComposer() {
       await addDoc(collection(db, "events", state.eventId, "posts"), {
         text: t,
         name: name.value.trim().slice(0, 40),
+        icon: state.icon,
         uid: state.user.uid,
         createdAt: serverTimestamp(),
         parentId: state.replyTo?.id ?? null,
@@ -471,12 +494,12 @@ function downloadCSV(isMod) {
   }
   for (const p of posts) if (!used.has(p.id)) ordered.push(p); // 親が消えた返信
 
-  const header = ["投稿ID", "親ID", "投稿時刻", "表示名", "本文", "いいね数"];
+  const header = ["投稿ID", "親ID", "投稿時刻", "アイコン", "表示名", "本文", "いいね数"];
   if (isMod) header.push("非表示");
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [header.map(esc).join(",")];
   for (const p of ordered) {
-    const row = [p.id, p.parentId ?? "", fmtTime(p.createdAt, true), p.name || "匿名", p.text, p.likedBy?.length ?? 0];
+    const row = [p.id, p.parentId ?? "", fmtTime(p.createdAt, true), p.icon ?? "", p.name || "匿名", p.text, p.likedBy?.length ?? 0];
     if (isMod) row.push(p.hidden ? "1" : "0");
     lines.push(row.map(esc).join(","));
   }

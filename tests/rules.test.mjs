@@ -93,6 +93,10 @@ test("参加者は自分名義でだけ投稿できる", async () => {
   await assertFails(addDoc(collection(db, "events/E1/posts"), newPost("bob", { text: "" })));
   await assertFails(addDoc(collection(db, "events/E1/posts"), newPost("bob", { text: "あ".repeat(2001) })));
   await assertFails(addDoc(collection(db, "events/E1/posts"), newPost("bob", { extra: 1 })));
+  // 絵文字アイコンは任意。長すぎる文字列や文字列以外は弾く
+  await assertSucceeds(addDoc(collection(db, "events/E1/posts"), newPost("bob", { icon: "🦊" })));
+  await assertFails(addDoc(collection(db, "events/E1/posts"), newPost("bob", { icon: "あ".repeat(17) })));
+  await assertFails(addDoc(collection(db, "events/E1/posts"), newPost("bob", { icon: 1 })));
   // ログインしていない人は読めない
   await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), "events/E1/posts")));
 });

@@ -93,7 +93,9 @@ service cloud.firestore {
 
         allow create: if signedIn()
           && eventOpen(eventId)
-          && request.resource.data.keys().hasOnly(['text', 'name', 'uid', 'createdAt', 'parentId', 'hidden', 'likedBy'])
+          && request.resource.data.keys().hasOnly(['text', 'name', 'icon', 'uid', 'createdAt', 'parentId', 'hidden', 'likedBy'])
+          && (!('icon' in request.resource.data)
+              || (request.resource.data.icon is string && request.resource.data.icon.size() <= 16))
           && request.resource.data.keys().hasAll(['text', 'name', 'uid', 'createdAt', 'parentId', 'hidden', 'likedBy'])
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
