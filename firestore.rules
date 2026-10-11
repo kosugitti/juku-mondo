@@ -1,0 +1,121 @@
+rules_version = '2';
+
+// ============================================================
+// 塾Q&A のセキュリティルール
+//   参加者 = 匿名ログイン。投稿・返信・いいね・閲覧・CSV保存ができる
+//   幹事   = Googleログイン かつ config/organizers の emails に載っている人。
+//            イベントを作れる。全イベントの司会を兼ねる
+//   司会   = イベントの作成者 または 幹事。非表示・締め切り・削除ができる
+// config/organizers はコンソールからだけ書き換える(アプリからは書けない)
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 共通の判定 ----
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.get('email', null);
+    }
+    function isOrganizer() {
+      let cfg = /databases/$(database)/documents/config/organizers;
+      return signedIn()
+        && myEmail() != null
+        && request.auth.token.get('email_verified', false) == true
+        && exists(cfg)
+        && myEmail() in get(cfg).data.emails;
+    }
+    function eventData(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data;
+    }
+    function isModerator(eventId) {
+      return signedIn()
+        && (eventData(eventId).createdBy == request.auth.uid || isOrganizer());
+    }
+    function eventOpen(eventId) {
+      return eventData(eventId).closed == false;
+    }
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ---- 幹事の許可リスト ----
+    match /config/organizers {
+      // 自分が載っているかを確かめるためだけに読める
+      allow get: if signedIn()
+        && request.auth.token.get('email_verified', false) == true
+        && myEmail() in resource.data.emails;
+      allow list, write: if false;
+    }
+
+    // ---- イベント ----
+    match /events/{eventId} {
+      // URL(=ID)を知っていれば読める。一覧は幹事だけ
+      allow get: if signedIn();
+      allow list: if isOrganizer();
+
+      allow create: if isOrganizer()
+        && request.resource.data.keys().hasOnly(['title', 'createdBy', 'createdByEmail', 'createdAt', 'closed'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByEmail == myEmail()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.closed == false;
+
+      allow update: if isModerator(eventId)
+        && changedOnly(['title', 'closed'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.closed is bool;
+
+      allow delete: if isModerator(eventId);
+
+      // ---- 投稿(返信も同じ場所。parentId が親の投稿ID) ----
+      match /posts/{postId} {
+        function isLikeToggle() {
+          let before = resource.data.likedBy.toSet();
+          let afterList = request.resource.data.likedBy;
+          let after = afterList.toSet();
+          let me = [request.auth.uid].toSet();
+          return changedOnly(['likedBy'])
+            && afterList is list
+            && afterList.size() == after.size()      // 重複なし
+            && afterList.size() <= 500
+            && ((after.difference(before) == me && before.difference(after).size() == 0)
+             || (before.difference(after) == me && after.difference(before).size() == 0));
+        }
+
+        allow read: if signedIn();
+
+        allow create: if signedIn()
+          && eventOpen(eventId)
+          && request.resource.data.keys().hasOnly(['text', 'name', 'uid', 'createdAt', 'parentId', 'hidden', 'likedBy'])
+          && request.resource.data.keys().hasAll(['text', 'name', 'uid', 'createdAt', 'parentId', 'hidden', 'likedBy'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.hidden == false
+          && request.resource.data.likedBy == []
+          && (request.resource.data.parentId == null
+              || (request.resource.data.parentId is string
+                  && exists(/databases/$(database)/documents/events/$(eventId)/posts/$(request.resource.data.parentId))));
+
+        allow update: if signedIn()
+          && ((eventOpen(eventId) && isLikeToggle())
+           || (isModerator(eventId) && changedOnly(['hidden']) && request.resource.data.hidden is bool));
+
+        // 自分の投稿は消せる。司会はどれでも消せる(イベント削除の後始末用)
+        allow delete: if signedIn()
+          && (resource.data.uid == request.auth.uid || isModerator(eventId));
+      }
+    }
+  }
+}
