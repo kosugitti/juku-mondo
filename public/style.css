@@ -104,3 +104,10 @@ h2 { font-size: 16px; margin: 0 0 8px; }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .chip.add { color: var(--muted); }
 .react-palette { margin-top: 6px; max-width: 420px; }
+
+/* ===== 使い方 ===== */
+.nav { display: flex; gap: 12px; align-items: center; }
+.help-link { font-size: 14px; }
+.help dl { margin: 0; }
+.help dt { font-weight: 700; margin-top: 10px; }
+.help dd { margin: 2px 0 0; }
