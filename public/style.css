@@ -37,7 +37,8 @@ input, textarea {
   position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between;
   align-items: center; gap: 8px; padding: 8px 16px; background: var(--card); border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 700; text-decoration: none; color: var(--text); }
+.brand { font-weight: 700; text-decoration: none; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.logo { width: 22px; height: 22px; }
 .who { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 main { max-width: 760px; margin: 0 auto; padding: 16px 16px 220px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
