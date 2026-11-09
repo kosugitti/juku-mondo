@@ -77,6 +77,12 @@ h2 { font-size: 16px; margin: 0 0 8px; }
 .replying span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name-input { max-width: 220px; }
 #qr { display: flex; justify-content: center; padding: 8px; background: #fff; border-radius: 8px; width: fit-content; margin: 8px auto; }
+.netbar {
+  position: fixed; top: 52px; left: 0; right: 0; z-index: 15; display: flex; justify-content: center; align-items: center;
+  gap: 12px; padding: 8px 12px; background: var(--warn); color: #fff; font-size: 14px;
+}
+.netbar[hidden] { display: none; }
+.netbar button { background: #fff; color: var(--warn); border: none; }
 .toast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 6px 14px; border-radius: 8px; font-size: 14px; z-index: 20; }
 
 /* ===== 絵文字アイコン ===== */

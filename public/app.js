@@ -13,7 +13,7 @@ const {
   signInWithPopup, GoogleAuthProvider, signOut,
 } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
 const {
-  getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, collection, addDoc,
+  getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, getDocsFromServer, collection, addDoc,
   updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, FieldPath,
 } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
@@ -56,6 +56,7 @@ const state = {
   replyTo: null,       // 返信先の投稿
   pickerFor: null,     // リアクションの一覧を開いている投稿
   redraw: () => {},    // 表示中の画面を描き直す
+  subscribe: null,     // 表示中の画面の購読を張り直す(接続が切れたときに使う)
 };
 // 初めて開いたブラウザには絵文字を1つ割り当てて覚えておく
 state.icon = load("icon", null) || ICONS[Math.floor(Math.random() * ICONS.length)];
@@ -94,6 +95,46 @@ function fail(e) {
   console.error(e);
   toast(e?.code === "permission-denied" ? "権限がありません(締め切り後かもしれません)" : "エラー: " + (e?.message ?? e));
 }
+
+// ---- 接続の帯 ----
+// onSnapshot は一度エラーで止まるとそのまま更新されなくなる。消えるトーストでは気づけないので，
+// 帯を出しっぱなしにして「再接続」で購読を張り直せるようにする(2026-11-09・「自動更新されない」報告への対応)
+const $netbar = h("div", { class: "netbar", hidden: true });
+document.body.append($netbar);
+function showNetbar(msg) {
+  $netbar.replaceChildren(h("span", {}, msg), h("button", { onclick: resubscribe }, "再接続"));
+  $netbar.hidden = false;
+}
+function hideNetbar() { $netbar.hidden = true; }
+function listenFail(e) {
+  console.error(e);
+  showNetbar(e?.code === "permission-denied" ? "読み取りの権限がありません。" : "更新が止まっています。");
+}
+// 表示中の画面の購読を張り直す(画面は作り直さないので，書きかけの投稿は消えない)
+function resubscribe() {
+  if (!state.user || !state.subscribe) return;
+  clearListeners();
+  state.subscribe();
+  hideNetbar();
+}
+// 画面に戻ったとき・回線が戻ったときに，サーバの投稿一覧と手元を突き合わせ，ずれていれば張り直す。
+// 端末のスリープやプロキシで購読が黙って切れることがあり，その場合は何も通知が来ないため
+const sig = (p) => `${p.id}:${p.likedBy?.length ?? 0}:${p.hidden ? 1 : 0}:${Object.values(p.reactions ?? {}).flat().length}:${p.text?.length ?? 0}`;
+async function checkConnection() {
+  if (!state.user || !state.eventId || !state.subscribe) return;
+  try {
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000));
+    const snap = await Promise.race([getDocsFromServer(collection(db, "events", state.eventId, "posts")), timeout]);
+    const server = snap.docs.map((d) => sig({ id: d.id, ...d.data() })).sort().join("|");
+    const local = state.posts.map(sig).sort().join("|");
+    if (server !== local) resubscribe(); else hideNetbar();
+  } catch (e) {
+    console.error(e);
+    showNetbar("更新が止まっています。");
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkConnection(); });
+window.addEventListener("online", checkConnection);
 function fmtTime(ts, withDate = false) {
   if (!ts) return "";
   const d = ts.toDate ? ts.toDate() : ts;
@@ -150,6 +191,9 @@ function renderWho() {
 window.addEventListener("hashchange", () => state.user && route());
 function route() {
   clearListeners();
+  state.subscribe = null;
+  state.eventId = null;
+  hideNetbar();
   state.replyTo = null;
   state.pickerFor = null;
   document.querySelector(".composer")?.remove();
@@ -206,7 +250,7 @@ function renderHome() {
     list,
   );
 
-  state.unsubs.push(onSnapshot(
+  state.subscribe = () => state.unsubs.push(onSnapshot(
     query(collection(db, "events"), orderBy("createdAt", "desc")),
     (snap) => {
       list.replaceChildren();
@@ -220,8 +264,9 @@ function renderHome() {
         ));
       });
     },
-    fail,
+    listenFail,
   ));
+  state.subscribe();
 }
 
 // ============================================================
@@ -255,6 +300,7 @@ function renderEvent(eventId) {
     composer.update();
   };
 
+  state.subscribe = () => {
   // イベント本体
   state.unsubs.push(onSnapshot(doc(db, "events", eventId), (snap) => {
     if (!snap.exists()) {
@@ -268,7 +314,7 @@ function renderEvent(eventId) {
     state.event = snap.data({ serverTimestamps: "estimate" });
     document.title = state.event.title + " | Juku.mondo";
     redraw();
-  }, fail));
+  }, listenFail));
 
   // 投稿(返信を含む)を時刻順に
   state.unsubs.push(onSnapshot(
@@ -277,8 +323,10 @@ function renderEvent(eventId) {
       state.posts = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: "estimate" }) }));
       redraw();
     },
-    fail,
+    listenFail,
   ));
+  };
+  state.subscribe();
 }
 
 function renderHead(el) {
@@ -348,6 +396,7 @@ function renderToolbar(el, redraw, isMod) {
     seg,
     h("div", { class: "row" },
       h("span", { class: "muted" }, `質問 ${nTop} 件`),
+      h("button", { onclick: () => { resubscribe(); toast("更新しました"); } }, "更新"),
       h("button", { onclick: () => downloadCSV(isMod) }, "CSVで保存")),
   );
 }
